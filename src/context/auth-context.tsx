@@ -1,52 +1,106 @@
-import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-type AuthUser = {
+import { loginWithCredentials } from '@/services/auth-api';
+import { clearSession, loadSession, saveSession } from '@/services/auth-storage';
+
+export type AuthUser = {
   email: string;
+  establishmentId: string;
+  subDomain: string;
 };
 
 type AuthContextValue = {
   user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
   isSigningIn: boolean;
+  isRestoring: boolean;
+  isLocked: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
+  lockScreen: () => void;
+  unlockScreen: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const DEMO_EMAIL = 'admin@klinikaai.com';
-const DEMO_PASSWORD = 'Klinika123!';
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
 
-  const signIn = async (email: string, password: string) => {
+  useEffect(() => {
+    let mounted = true;
+
+    loadSession()
+      .then(session => {
+        if (!mounted || !session) return;
+        setToken(session.token);
+        setUser({
+          email: session.email,
+          establishmentId: session.establishmentId,
+          subDomain: session.subDomain,
+        });
+      })
+      .finally(() => {
+        if (mounted) setIsRestoring(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const signIn = useCallback(async (email: string, password: string) => {
     setIsSigningIn(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const data = await loginWithCredentials(email, password);
 
-      if (email.trim().toLowerCase() !== DEMO_EMAIL || password !== DEMO_PASSWORD) {
-        throw new Error('Invalid email or password.');
-      }
+      const session = {
+        token: data.token,
+        email: data.email,
+        establishmentId: String(data.establishment_id),
+        subDomain: data.sub_domain,
+      };
 
-      setUser({ email: email.trim().toLowerCase() });
+      await saveSession(session);
+      setToken(session.token);
+      setUser({
+        email: session.email,
+        establishmentId: session.establishmentId,
+        subDomain: session.subDomain,
+      });
     } finally {
       setIsSigningIn(false);
     }
-  };
+  }, []);
 
-  const signOut = () => setUser(null);
+  const signOut = useCallback(async () => {
+    await clearSession();
+    setToken(null);
+    setUser(null);
+    setIsLocked(false);
+  }, []);
+
+  const lockScreen = useCallback(() => setIsLocked(true), []);
+  const unlockScreen = useCallback(() => setIsLocked(false), []);
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: user !== null,
+      token,
+      isAuthenticated: user !== null && token !== null,
       isSigningIn,
+      isRestoring,
+      isLocked,
       signIn,
       signOut,
+      lockScreen,
+      unlockScreen,
     }),
-    [isSigningIn, user]
+    [isLocked, isRestoring, isSigningIn, lockScreen, signIn, signOut, token, unlockScreen, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

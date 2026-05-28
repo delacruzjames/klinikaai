@@ -24,7 +24,7 @@ const BRAND_BLUE = '#208AEF';
 export default function HomeScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const { isAuthenticated, isSigningIn, signIn } = useAuth();
+  const { isAuthenticated, isSigningIn, isRestoring, signIn } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,10 +36,10 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!isRestoring && isAuthenticated) {
       router.replace('/dashboard');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isRestoring, router]);
 
   const handleLogin = async () => {
     setError('');
@@ -52,12 +52,16 @@ export default function HomeScreen() {
       await signIn(email, password);
       router.replace('/dashboard');
     } catch (err) {
+      if (err instanceof TypeError) {
+        setError('Unable to reach the server. Check EXPO_PUBLIC_API_URL and try again.');
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Unable to sign in.';
       setError(message);
     }
   };
 
-  if (!showLogin) {
+  if (isRestoring || !showLogin) {
     return (
       <ThemedView style={styles.container}>
         <SafeAreaView style={styles.safeArea}>
@@ -66,7 +70,7 @@ export default function HomeScreen() {
               KlinikaAI
             </ThemedText>
             <ThemedText themeColor="textSecondary" style={styles.centered}>
-              Preparing your clinic workspace...
+              {isRestoring ? 'Restoring your session...' : 'Preparing your clinic workspace...'}
             </ThemedText>
             <ActivityIndicator size="large" color={BRAND_BLUE} style={styles.loader} />
           </View>
@@ -149,9 +153,6 @@ export default function HomeScreen() {
                 )}
               </Pressable>
 
-              <ThemedText type="small" themeColor="textSecondary" style={styles.demoHint}>
-                Demo: admin@klinikaai.com · Klinika123!
-              </ThemedText>
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -236,9 +237,5 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
-  },
-  demoHint: {
-    textAlign: 'center',
-    marginTop: Spacing.one,
   },
 });
