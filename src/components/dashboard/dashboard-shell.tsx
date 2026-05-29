@@ -18,6 +18,7 @@ function getScreenTitle(pathname: string): string {
     return pathname === nav.href || pathname.startsWith(`${nav.href}/`);
   });
   if (item) return item.label;
+  if (/^\/patients\/[^/]+$/.test(pathname)) return 'Patient';
   if (pathname.includes('profile')) return 'Profile';
   if (pathname.includes('update-password')) return 'Update Password';
   return 'KlinikaAI';
@@ -110,9 +111,12 @@ const styles = StyleSheet.create({
   main: {
     flex: 1,
     minWidth: 0,
+    width: '100%',
   },
   content: {
     flex: 1,
+    width: '100%',
+    minWidth: 0,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
