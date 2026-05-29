@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ConsultationDetailLoader } from '@/components/consultations/consultation-detail-view';
@@ -35,7 +35,6 @@ export function PatientConsultationsTab({
   onSelectConsultation,
 }: PatientConsultationsTabProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const { token } = useAuth();
   const theme = useTheme();
 
@@ -93,16 +92,6 @@ export function PatientConsultationsTab({
     });
   };
 
-  const backToConsultationList = () => {
-    onSelectConsultation(null);
-    if (pathname.includes('/consultations/')) {
-      router.replace({
-        pathname: '/patients/[id]',
-        params: { id: String(patientId), tab: 'consultations' },
-      });
-    }
-  };
-
   if (selectedConsultationId != null) {
     return (
       <ConsultationDetailLoader
@@ -110,7 +99,6 @@ export function PatientConsultationsTab({
         consultationId={selectedConsultationId}
         patient={patient}
         embedded
-        onBack={backToConsultationList}
       />
     );
   }
@@ -261,16 +249,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   panel: {
-    width: '100%',
-    alignSelf: 'stretch',
+    marginHorizontal: Spacing.three,
     marginTop: Spacing.two,
     marginBottom: Spacing.four,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
+    borderRadius: PatientUI.radius.lg,
+    padding: Spacing.four,
     gap: Spacing.four,
   },
   header: {

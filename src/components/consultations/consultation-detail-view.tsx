@@ -175,28 +175,27 @@ export function ConsultationDetailView({
       <View
         style={[
           embedded ? styles.shellEmbedded : styles.shell,
-          !embedded && PatientUI.cardShadow,
+          PatientUI.cardShadow,
           {
             backgroundColor: theme.background,
             borderColor: theme.backgroundSelected,
             maxWidth: embedded ? undefined : contentMaxWidth,
           },
         ]}>
-        <View style={styles.toolbar}>
-          <Pressable
-            onPress={handleBack}
-            style={({ pressed }) => [
-              embedded ? styles.backLink : styles.iconChip,
-              !embedded && { backgroundColor: theme.backgroundElement },
-              pressed && styles.pressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel={embedded ? 'Back to consultations list' : 'Go back'}>
-            <Ionicons name="arrow-back" size={20} color={theme.text} />
-            {embedded ? (
-              <ThemedText type="smallBold">Consultations</ThemedText>
-            ) : null}
-          </Pressable>
+        <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
+          {!embedded ? (
+            <Pressable
+              onPress={handleBack}
+              style={({ pressed }) => [
+                styles.iconChip,
+                { backgroundColor: theme.backgroundElement },
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Go back">
+              <Ionicons name="arrow-back" size={20} color={theme.text} />
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={handleEdit}
@@ -657,6 +656,7 @@ export function ConsultationDetailLoader({
   onBack,
 }: ConsultationDetailLoaderProps) {
   const { token } = useAuth();
+  const theme = useTheme();
 
   const [consultation, setConsultation] = useState<ConsultationDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -687,9 +687,15 @@ export function ConsultationDetailLoader({
     load();
   }, [load]);
 
+  const loaderPanelStyle = [
+    loaderStyles.centered,
+    PatientUI.cardShadow,
+    { backgroundColor: theme.background, borderColor: theme.backgroundSelected },
+  ];
+
   if (loading && !consultation) {
     return (
-      <View style={loaderStyles.centered}>
+      <View style={loaderPanelStyle}>
         <ActivityIndicator size="large" color={Brand.primary} />
         <ThemedText type="small" themeColor="textSecondary">
           Loading consultation…
@@ -700,14 +706,14 @@ export function ConsultationDetailLoader({
 
   if (error && !consultation) {
     return (
-      <View style={loaderStyles.centered}>
+      <View style={loaderPanelStyle}>
         <ThemedText type="small" themeColor="textSecondary">
           {error}
         </ThemedText>
         <Pressable onPress={load} accessibilityRole="button">
           <ThemedText type="linkPrimary">Retry</ThemedText>
         </Pressable>
-        {onBack ? (
+        {onBack && !embedded ? (
           <Pressable onPress={onBack} accessibilityRole="button">
             <ThemedText type="linkPrimary">Back</ThemedText>
           </Pressable>
@@ -732,9 +738,14 @@ export function ConsultationDetailLoader({
 
 const loaderStyles = StyleSheet.create({
   centered: {
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.two,
+    marginBottom: Spacing.four,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: PatientUI.radius.lg,
+    padding: Spacing.six,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.six,
     gap: Spacing.three,
   },
 });
@@ -759,19 +770,13 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   shellEmbedded: {
-    width: '100%',
-    alignSelf: 'stretch',
+    marginHorizontal: Spacing.three,
     marginTop: Spacing.two,
     marginBottom: Spacing.four,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: PatientUI.radius.lg,
+    padding: Spacing.four,
     gap: Spacing.four,
-  },
-  backLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
   },
   embeddedVisitBar: {
     flexDirection: 'row',
@@ -786,6 +791,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  toolbarEmbedded: {
+    justifyContent: 'flex-end',
   },
   iconChip: {
     width: 40,
