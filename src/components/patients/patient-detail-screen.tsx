@@ -9,10 +9,25 @@ import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 import { fetchPatientById, type PatientDetail } from '@/services/patients-api';
 
-export default function PatientDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+type PatientDetailScreenProps = {
+  initialTab?: string;
+  initialConsultationId?: string;
+};
+
+export function PatientDetailScreen({
+  initialTab: initialTabProp,
+  initialConsultationId: initialConsultationIdProp,
+}: PatientDetailScreenProps = {}) {
+  const { id, tab, consultationId } = useLocalSearchParams<{
+    id: string;
+    tab?: string;
+    consultationId?: string;
+  }>();
   const { token } = useAuth();
   const theme = useTheme();
+
+  const resolvedTab = initialTabProp ?? tab;
+  const resolvedConsultationId = initialConsultationIdProp ?? consultationId;
 
   const [patient, setPatient] = useState<PatientDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +75,13 @@ export default function PatientDetailScreen() {
         </View>
       ) : null}
 
-      {patient && !loading ? <PatientDetailView patient={patient} /> : null}
+      {patient && !loading ? (
+        <PatientDetailView
+          patient={patient}
+          initialTab={resolvedTab}
+          initialConsultationId={resolvedConsultationId}
+        />
+      ) : null}
     </View>
   );
 }

@@ -18,7 +18,7 @@ function getScreenTitle(pathname: string): string {
     return pathname === nav.href || pathname.startsWith(`${nav.href}/`);
   });
   if (item) return item.label;
-  if (/^\/patients\/[^/]+$/.test(pathname)) return 'Patient';
+  if (/^\/patients\/[^/]+/.test(pathname)) return 'Patient';
   if (pathname.includes('profile')) return 'Profile';
   if (pathname.includes('update-password')) return 'Update Password';
   return 'KlinikaAI';

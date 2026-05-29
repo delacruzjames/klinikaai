@@ -27,6 +27,25 @@ export type Patient = {
   other_mobile_number?: string;
   tel_no?: string;
   created_by?: string;
+  vitals?: Vital[];
+};
+
+export type Vital = {
+  id: number;
+  recorded_at: string;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  bmi?: number | null;
+  body_surface_area_m2?: number | null;
+  heart_rate?: number | null;
+  respiratory_rate?: number | null;
+  temperature_c?: number | null;
+  spo2?: number | null;
+  cbg_mg_dl?: number | null;
+  systolic?: number | null;
+  diastolic?: number | null;
+  blood_pressure?: string | null;
+  notes?: string | null;
 };
 
 export type PatientDetail = Patient;
@@ -105,5 +124,48 @@ export async function fetchPatientById(token: string, id: string | number): Prom
     throw new Error('Unexpected response from server.');
   }
 
-  return data;
+  return {
+    ...data,
+    vitals: normalizeVitals(data.vitals),
+  };
+}
+
+/** General vitals list — from GET /api/patients/:id (PatientSerializer with_vitals). */
+export async function fetchPatientVitals(
+  token: string,
+  patientId: string | number
+): Promise<Vital[]> {
+  const patient = await fetchPatientById(token, patientId);
+  return patient.vitals ?? [];
+}
+
+function normalizeVitals(raw: unknown): Vital[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === 'object')
+    .map(item => ({
+      id: Number(item.id),
+      recorded_at: String(item.recorded_at ?? ''),
+      height_cm: toNullableNumber(item.height_cm),
+      weight_kg: toNullableNumber(item.weight_kg),
+      bmi: toNullableNumber(item.bmi),
+      body_surface_area_m2: toNullableNumber(item.body_surface_area_m2),
+      heart_rate: toNullableNumber(item.heart_rate),
+      respiratory_rate: toNullableNumber(item.respiratory_rate),
+      temperature_c: toNullableNumber(item.temperature_c),
+      spo2: toNullableNumber(item.spo2),
+      cbg_mg_dl: toNullableNumber(item.cbg_mg_dl),
+      systolic: toNullableNumber(item.systolic),
+      diastolic: toNullableNumber(item.diastolic),
+      blood_pressure: item.blood_pressure != null ? String(item.blood_pressure) : null,
+      notes: item.notes != null ? String(item.notes) : null,
+    }))
+    .filter(v => Number.isFinite(v.id) && v.recorded_at.length > 0);
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
