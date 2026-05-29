@@ -182,67 +182,63 @@ export function ConsultationDetailView({
             maxWidth: embedded ? undefined : contentMaxWidth,
           },
         ]}>
-        <View style={[styles.toolbar, embedded && styles.toolbarEmbedded]}>
-          {!embedded ? (
-            <Pressable
-              onPress={handleBack}
-              style={({ pressed }) => [
-                styles.iconChip,
-                { backgroundColor: theme.backgroundElement },
-                pressed && styles.pressed,
-              ]}
-              accessibilityRole="button"
-              accessibilityLabel="Go back">
-              <Ionicons name="arrow-back" size={20} color={theme.text} />
-            </Pressable>
-          ) : null}
+        {!embedded ? (
+          <Pressable
+            onPress={handleBack}
+            style={({ pressed }) => [
+              styles.backRow,
+              { backgroundColor: theme.backgroundElement },
+              pressed && styles.pressed,
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back">
+            <Ionicons name="arrow-back" size={20} color={theme.text} />
+            <ThemedText type="smallBold">Back</ThemedText>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.hero}>
+          <View style={styles.heroMain}>
+            <View style={[styles.heroIcon, { backgroundColor: Brand.primaryMuted }]}>
+              <Ionicons name="calendar-outline" size={26} color={Brand.primary} />
+            </View>
+            <View style={styles.heroText}>
+              <ThemedText style={styles.heroTitle}>Consultation overview</ThemedText>
+              {doctorName ? (
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+                  Dr. {doctorName}
+                </ThemedText>
+              ) : null}
+              <View style={styles.heroMetaRow}>
+                <View style={[styles.datePill, { backgroundColor: theme.backgroundElement }]}>
+                  <Ionicons name="time-outline" size={14} color={Brand.primary} />
+                  <ThemedText type="smallBold" style={{ color: Brand.primary }}>
+                    {visitDate}
+                  </ThemedText>
+                </View>
+                {consultation.branch_name ? (
+                  <View style={[styles.branchPill, { backgroundColor: theme.backgroundElement }]}>
+                    <Ionicons name="business-outline" size={14} color={theme.textSecondary} />
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                      {consultation.branch_name}
+                    </ThemedText>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          </View>
 
           <Pressable
             onPress={handleEdit}
             style={({ pressed }) => [
-              styles.editChip,
-              { backgroundColor: '#fff7ed', borderColor: '#fdba74' },
+              styles.editActionBtn,
+              PatientUI.cardShadowLight,
               pressed && styles.pressed,
             ]}
             accessibilityRole="button"
             accessibilityLabel="Edit consultation">
-            <Ionicons name="create-outline" size={18} color="#d97706" />
-            {!isMobile ? (
-              <ThemedText type="smallBold" style={styles.editChipText}>
-                Edit
-              </ThemedText>
-            ) : null}
+            <Ionicons name="create-outline" size={20} color="#ffffff" />
           </Pressable>
-        </View>
-
-        <View style={styles.hero}>
-          <View style={[styles.heroIcon, { backgroundColor: Brand.primaryMuted }]}>
-            <Ionicons name="calendar-outline" size={26} color={Brand.primary} />
-          </View>
-          <View style={styles.heroText}>
-            <ThemedText style={styles.heroTitle}>Consultation overview</ThemedText>
-            {doctorName ? (
-              <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
-                Dr. {doctorName}
-              </ThemedText>
-            ) : null}
-            <View style={styles.heroMetaRow}>
-              <View style={[styles.datePill, { backgroundColor: theme.backgroundElement }]}>
-                <Ionicons name="time-outline" size={14} color={Brand.primary} />
-                <ThemedText type="smallBold" style={{ color: Brand.primary }}>
-                  {visitDate}
-                </ThemedText>
-              </View>
-              {consultation.branch_name ? (
-                <View style={[styles.branchPill, { backgroundColor: theme.backgroundElement }]}>
-                  <Ionicons name="business-outline" size={14} color={theme.textSecondary} />
-                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                    {consultation.branch_name}
-                  </ThemedText>
-                </View>
-              ) : null}
-            </View>
-          </View>
         </View>
 
         {!embedded ? (
@@ -787,33 +783,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
   },
-  toolbar: {
+  backRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  toolbarEmbedded: {
-    justifyContent: 'flex-end',
-  },
-  iconChip: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: Spacing.three,
+    alignSelf: 'flex-start',
+    gap: Spacing.one,
+    paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
     borderRadius: PatientUI.radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  editChipText: {
-    color: '#d97706',
-    fontSize: 14,
   },
   pressed: {
     opacity: 0.85,
@@ -822,6 +799,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.three,
+  },
+  heroMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.three,
+    minWidth: 0,
+  },
+  editActionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: PatientUI.radius.md,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   heroIcon: {
     width: 52,
