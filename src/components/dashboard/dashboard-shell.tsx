@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DashboardHeader } from '@/components/dashboard/dashboard-header';
 import { LockScreenOverlay } from '@/components/dashboard/lock-screen-overlay';
-import { SIDEBAR_WIDTHS, Sidebar } from '@/components/dashboard/sidebar';
+import { Sidebar } from '@/components/dashboard/sidebar';
 import { ThemedView } from '@/components/themed-view';
 import { MAIN_NAV_ITEMS } from '@/constants/navigation';
 import { useAuth } from '@/context/auth-context';
@@ -106,7 +106,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     zIndex: 10,
-    elevation: 10,
+    elevation: 16,
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 8, height: 0 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
   },
   main: {
     flex: 1,

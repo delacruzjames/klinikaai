@@ -17,13 +17,33 @@ export type NavItem = {
   icon: NavIcon;
 };
 
-export const MAIN_NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: 'grid-outline' },
-  { label: 'Triages', href: '/triages', icon: 'medkit-outline' },
-  { label: 'Queues', href: '/queues', icon: 'list-outline' },
-  { label: 'Patients', href: '/patients', icon: 'people-outline' },
-  { label: 'Consultations', href: '/consultations', icon: 'document-text-outline' },
-  { label: 'FollowUps', href: '/follow-ups', icon: 'calendar-outline' },
-  { label: 'Branches', href: '/branches', icon: 'business-outline' },
-  { label: 'Accounts', href: '/accounts', icon: 'person-circle-outline' },
+export type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+export const NAV_SECTIONS: NavSection[] = [
+  {
+    title: 'Overview',
+    items: [{ label: 'Dashboard', href: '/dashboard', icon: 'grid-outline' }],
+  },
+  {
+    title: 'Clinical',
+    items: [
+      { label: 'Triages', href: '/triages', icon: 'medkit-outline' },
+      { label: 'Queues', href: '/queues', icon: 'list-outline' },
+      { label: 'Patients', href: '/patients', icon: 'people-outline' },
+      { label: 'Consultations', href: '/consultations', icon: 'document-text-outline' },
+      { label: 'FollowUps', href: '/follow-ups', icon: 'calendar-outline' },
+    ],
+  },
+  {
+    title: 'Organization',
+    items: [
+      { label: 'Branches', href: '/branches', icon: 'business-outline' },
+      { label: 'Accounts', href: '/accounts', icon: 'person-circle-outline' },
+    ],
+  },
 ];
+
+export const MAIN_NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap(section => section.items);
