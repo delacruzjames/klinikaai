@@ -1,23 +1,27 @@
-import { useMemo } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import { useMemo, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
-import { ThemedText } from '@/components/themed-text';
 import { PatientUI } from '@/components/patients/patient-ui';
+import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   CHART_CONFIG,
   PATIENT_SERIES_COLOR,
+  Y_AXIS_UNIT,
   type ChartKind,
   type GrowthChartPoint,
   type PatientSex,
   type WHOReferenceBySex,
+  buildAgeAxisTicks,
+  chartDisplayTitle,
   defaultWhoReference,
+  formatAxisAgeLabel,
   getMaxAgeMonths,
+  interpolateWhoSeries,
   percentileMeta,
-  whoSeriesToPoints,
 } from '@/utils/growth-chart';
 
 type ChartSeries = {
@@ -36,24 +40,26 @@ type GrowthLineChartProps = {
   whoReference?: WHOReferenceBySex;
   width?: number;
   height?: number;
-  compact?: boolean;
 };
 
-const CHART_HEIGHT = 220;
-const PADDING = { top: 12, right: 12, bottom: 32, left: 40 };
+const CHART_HEIGHT = 300;
+const PADDING = { top: 22, right: 14, bottom: 48, left: 52 };
+const WHO_MAX_MONTHS = 24;
+const MIN_CHART_WIDTH = 280;
 
 function buildReferenceSeries(
   kind: ChartKind,
   sex: PatientSex,
-  whoReference: WHOReferenceBySex
+  whoReference: WHOReferenceBySex,
+  maxAge: number
 ): ChartSeries[] {
-  if (kind === 'bmi') return [];
-
   const reference = whoReference[sex][kind];
+  const cap = Math.min(maxAge, WHO_MAX_MONTHS);
+
   return percentileMeta.map(item => ({
-    points: whoSeriesToPoints(reference[item.key]),
+    points: interpolateWhoSeries(reference[item.key], cap),
     color: item.color,
-    strokeWidth: 1.5,
+    strokeWidth: item.key === 'p50' ? 2.5 : 1.5,
     dashed: item.key !== 'p50',
   }));
 }
@@ -64,7 +70,7 @@ function computeYDomain(allSeries: ChartSeries[]): { min: number; max: number } 
 
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const padding = (max - min) * 0.12 || 1;
+  const padding = (max - min) * 0.1 || 1;
   return { min: Math.max(0, min - padding), max: max + padding };
 }
 
@@ -109,17 +115,33 @@ export function GrowthLineChart({
   whoReference = defaultWhoReference,
   width: widthProp,
   height = CHART_HEIGHT,
-  compact = false,
 }: GrowthLineChartProps) {
   const theme = useTheme();
   const isDark = useColorScheme() === 'dark';
   const { width: screenWidth } = useWindowDimensions();
-  const chartWidth =
-    widthProp ?? Math.min(screenWidth - Spacing.three * 2 - Spacing.four * 2, 480);
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+
+  const onLayout = (event: LayoutChangeEvent) => {
+    const w = event.nativeEvent.layout.width;
+    if (w > 0 && Math.abs(w - measuredWidth) > 1) {
+      setMeasuredWidth(w);
+    }
+  };
+
+  const chartWidth = Math.max(
+    MIN_CHART_WIDTH,
+    widthProp ?? (measuredWidth > 0 ? measuredWidth : Math.min(screenWidth - 32, 520))
+  );
 
   const config = CHART_CONFIG[kind];
   const plotWidth = chartWidth - PADDING.left - PADDING.right;
   const plotHeight = height - PADDING.top - PADDING.bottom;
+
+  const xMax = useMemo(
+    () => Math.max(8, Math.ceil(getMaxAgeMonths(patientPoints)) + 2),
+    [patientPoints]
+  );
+  const xMin = 0;
 
   const allSeries = useMemo(() => {
     const patientSeries: ChartSeries = {
@@ -129,215 +151,267 @@ export function GrowthLineChart({
       showDots: true,
     };
 
-    const reference =
-      showWhoReference && kind !== 'bmi' ? buildReferenceSeries(kind, sex, whoReference) : [];
+    const reference = showWhoReference
+      ? buildReferenceSeries(kind, sex, whoReference, xMax)
+      : [];
 
     return [patientSeries, ...reference];
-  }, [kind, patientPoints, sex, showWhoReference, whoReference]);
+  }, [kind, patientPoints, sex, showWhoReference, whoReference, xMax]);
 
-  const xMax = useMemo(
-    () => Math.ceil(getMaxAgeMonths(patientPoints)) + 2,
-    [patientPoints]
-  );
-  const xMin = 0;
   const { min: yMin, max: yMax } = useMemo(() => computeYDomain(allSeries), [allSeries]);
 
-  const gridColor = isDark ? theme.backgroundSelected : '#e2e8f0';
-  const axisColor = theme.textSecondary;
-  const xTicks = useMemo(() => {
-    const ticks: number[] = [];
-    const step = xMax <= 24 ? 3 : Math.ceil(xMax / 6);
-    for (let v = 0; v <= xMax; v += step) ticks.push(v);
-    if (ticks[ticks.length - 1] !== xMax) ticks.push(xMax);
-    return ticks;
-  }, [xMax]);
+  const gridColor = isDark ? '#3f3f46' : '#e2e8f0';
+  const axisColor = isDark ? '#a1a1aa' : '#64748b';
+  const xTicks = useMemo(() => buildAgeAxisTicks(xMax, 9), [xMax]);
 
   const yTicks = useMemo(() => {
-    const count = 4;
+    const count = 5;
     const step = (yMax - yMin) / count;
     return Array.from({ length: count + 1 }, (_, i) => yMin + step * i);
   }, [yMin, yMax]);
 
   if (!patientPoints.length) {
     return (
-      <View style={[styles.empty, { backgroundColor: theme.backgroundElement }]}>
+      <View
+        style={[styles.empty, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
+        onLayout={onLayout}>
+        <ThemedText type="smallBold" style={styles.emptyTitle}>
+          {chartDisplayTitle(kind)}
+        </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          No {kind} measurements recorded yet.
+          No measurements recorded yet.
         </ThemedText>
       </View>
     );
   }
 
   const patientLine = allSeries[0];
-
+  const lastPatientIndex = patientLine.points.length - 1;
   return (
-    <View style={styles.wrap}>
-      <ThemedText type="smallBold" style={styles.title}>
-        {config.title}
+    <View style={styles.wrap} onLayout={onLayout}>
+      <ThemedText style={[styles.title, { color: theme.text }]}>
+        {chartDisplayTitle(kind)}
       </ThemedText>
-      <Svg width={chartWidth} height={height}>
-        {yTicks.map(tick => {
-          const { y } = toPoint({ x: xMin, y: tick }, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
-          return (
-            <Line
-              key={`grid-y-${tick}`}
-              x1={PADDING.left}
-              y1={y}
-              x2={PADDING.left + plotWidth}
-              y2={y}
-              stroke={gridColor}
-              strokeWidth={1}
-              strokeDasharray="4,4"
-            />
-          );
-        })}
 
-        <Line
-          x1={PADDING.left}
-          y1={PADDING.top}
-          x2={PADDING.left}
-          y2={PADDING.top + plotHeight}
-          stroke={axisColor}
-          strokeWidth={1}
-        />
-        <Line
-          x1={PADDING.left}
-          y1={PADDING.top + plotHeight}
-          x2={PADDING.left + plotWidth}
-          y2={PADDING.top + plotHeight}
-          stroke={axisColor}
-          strokeWidth={1}
-        />
+      <View
+        style={[
+          styles.chartSurface,
+          {
+            backgroundColor: theme.background,
+            borderColor: theme.backgroundSelected,
+          },
+        ]}>
+        <Svg width={chartWidth} height={height}>
+          {yTicks.map(tick => {
+            const { y } = toPoint({ x: xMin, y: tick }, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
+            return (
+              <Line
+                key={`grid-y-${tick}`}
+                x1={PADDING.left}
+                y1={y}
+                x2={PADDING.left + plotWidth}
+                y2={y}
+                stroke={gridColor}
+                strokeWidth={1}
+                strokeDasharray="4,4"
+              />
+            );
+          })}
 
-        {yTicks.map(tick => {
-          const { y } = toPoint({ x: xMin, y: tick }, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
-          return (
+          <Line
+            x1={PADDING.left}
+            y1={PADDING.top}
+            x2={PADDING.left}
+            y2={PADDING.top + plotHeight}
+            stroke={axisColor}
+            strokeWidth={1}
+          />
+          <Line
+            x1={PADDING.left}
+            y1={PADDING.top + plotHeight}
+            x2={PADDING.left + plotWidth}
+            y2={PADDING.top + plotHeight}
+            stroke={axisColor}
+            strokeWidth={1}
+          />
+
+          <G rotation={-90} originX={16} originY={PADDING.top + plotHeight / 2}>
+            <SvgText
+              x={16}
+              y={PADDING.top + plotHeight / 2}
+              fontSize={10}
+              fill={axisColor}
+              textAnchor="middle"
+              fontWeight="600">
+              {Y_AXIS_UNIT[kind]}
+            </SvgText>
+          </G>
+
+          {yTicks.map(tick => (
             <SvgText
               key={`ylabel-${tick}`}
-              x={PADDING.left - 6}
-              y={y + 4}
+              x={PADDING.left - 8}
+              y={
+                toPoint({ x: xMin, y: tick }, xMin, xMax, yMin, yMax, plotWidth, plotHeight).y + 4
+              }
               fontSize={10}
               fill={axisColor}
               textAnchor="end">
               {tick.toFixed(config.yDecimals)}
             </SvgText>
-          );
-        })}
-
-        {xTicks.map(tick => {
-          const { x } = toPoint({ x: tick, y: yMin }, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
-          const label = tick < 24 ? `${tick}m` : `${Math.round(tick / 12)}y`;
-          return (
-            <SvgText
-              key={`xlabel-${tick}`}
-              x={x}
-              y={PADDING.top + plotHeight + 18}
-              fontSize={10}
-              fill={axisColor}
-              textAnchor="middle">
-              {label}
-            </SvgText>
-          );
-        })}
-
-        <SvgText
-          x={PADDING.left + plotWidth / 2}
-          y={height - 4}
-          fontSize={10}
-          fill={axisColor}
-          textAnchor="middle">
-          Age (months)
-        </SvgText>
-
-        {allSeries.slice(1).map((series, index) => (
-          <Polyline
-            key={`ref-${index}`}
-            points={toPolyline(series.points, xMin, xMax, yMin, yMax, plotWidth, plotHeight)}
-            fill="none"
-            stroke={series.color}
-            strokeWidth={series.strokeWidth}
-            strokeDasharray={series.dashed ? '4,4' : undefined}
-            opacity={0.85}
-          />
-        ))}
-
-        {patientLine.points.length >= 2 ? (
-          <Polyline
-            points={toPolyline(patientLine.points, xMin, xMax, yMin, yMax, plotWidth, plotHeight)}
-            fill="none"
-            stroke={patientLine.color}
-            strokeWidth={patientLine.strokeWidth}
-          />
-        ) : null}
-
-        {patientLine.showDots
-          ? patientLine.points.map((p, i) => {
-              const pt = toPoint(p, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
-              return (
-                <Circle
-                  key={`dot-${i}`}
-                  cx={pt.x}
-                  cy={pt.y}
-                  r={5}
-                  fill={patientLine.color}
-                  stroke="#ffffff"
-                  strokeWidth={2}
-                />
-              );
-            })
-          : null}
-      </Svg>
-
-      {showWhoReference && kind !== 'bmi' && !compact ? (
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendSwatch, { backgroundColor: PATIENT_SERIES_COLOR }]} />
-            <ThemedText type="small" themeColor="textSecondary">
-              Patient
-            </ThemedText>
-          </View>
-          {percentileMeta.map(item => (
-            <View key={item.key} style={styles.legendItem}>
-              <View style={[styles.legendSwatch, { backgroundColor: item.color }]} />
-              <ThemedText type="small" themeColor="textSecondary">
-                {item.label}
-              </ThemedText>
-            </View>
           ))}
-        </View>
-      ) : null}
+
+          {xTicks.map(tick => {
+            const { x } = toPoint({ x: tick, y: yMin }, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
+            return (
+              <SvgText
+                key={`xlabel-${tick}`}
+                x={x}
+                y={PADDING.top + plotHeight + 18}
+                fontSize={9}
+                fill={axisColor}
+                textAnchor="middle">
+                {formatAxisAgeLabel(tick)}
+              </SvgText>
+            );
+          })}
+
+          <SvgText
+            x={PADDING.left + plotWidth / 2}
+            y={height - 8}
+            fontSize={10}
+            fill={axisColor}
+            textAnchor="middle"
+            fontWeight="600">
+            AGE (MONTHS)
+          </SvgText>
+
+          {allSeries.slice(1).map((series, index) => (
+            <Polyline
+              key={`ref-${index}`}
+              points={toPolyline(series.points, xMin, xMax, yMin, yMax, plotWidth, plotHeight)}
+              fill="none"
+              stroke={series.color}
+              strokeWidth={series.strokeWidth}
+              strokeDasharray={series.dashed ? '5,5' : undefined}
+              opacity={0.95}
+            />
+          ))}
+
+          {patientLine.points.length >= 2 ? (
+            <Polyline
+              points={toPolyline(patientLine.points, xMin, xMax, yMin, yMax, plotWidth, plotHeight)}
+              fill="none"
+              stroke={patientLine.color}
+              strokeWidth={patientLine.strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : null}
+
+          {patientLine.points.length === 1 ? (
+            <Line
+              x1={toPoint(patientLine.points[0], xMin, xMax, yMin, yMax, plotWidth, plotHeight).x}
+              y1={toPoint(patientLine.points[0], xMin, xMax, yMin, yMax, plotWidth, plotHeight).y}
+              x2={toPoint(patientLine.points[0], xMin, xMax, yMin, yMax, plotWidth, plotHeight).x}
+              y2={PADDING.top + plotHeight}
+              stroke={patientLine.color}
+              strokeWidth={2}
+            />
+          ) : null}
+
+          {patientLine.showDots
+            ? patientLine.points.map((p, i) => {
+                const pt = toPoint(p, xMin, xMax, yMin, yMax, plotWidth, plotHeight);
+                const isLast = i === lastPatientIndex;
+                return (
+                  <Circle
+                    key={`dot-${i}`}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={isLast ? 7 : 4}
+                    fill={patientLine.color}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  />
+                );
+              })
+            : null}
+        </Svg>
+      </View>
+
+      <View style={styles.legend}>
+        <LegendItem color={PATIENT_SERIES_COLOR} label="Patient" />
+        {showWhoReference
+          ? percentileMeta.map(item => (
+              <LegendItem key={item.key} color={item.color} label={`${item.label} percentile`} />
+            ))
+          : null}
+      </View>
+    </View>
+  );
+}
+
+function LegendItem({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendSwatch, { backgroundColor: color }]} />
+      <ThemedText style={styles.legendLabel}>{label.toUpperCase()}</ThemedText>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
+    width: '100%',
     gap: Spacing.two,
   },
   title: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+  chartSurface: {
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
   },
   empty: {
-    minHeight: 160,
-    borderRadius: PatientUI.radius.md,
+    width: '100%',
+    minHeight: 200,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.four,
+    gap: Spacing.two,
+  },
+  emptyTitle: {
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   legend: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: Spacing.two,
     paddingTop: Spacing.one,
   },
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
   legendSwatch: {
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  legendLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    opacity: 0.9,
   },
 });

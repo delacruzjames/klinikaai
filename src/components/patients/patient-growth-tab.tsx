@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -81,8 +79,10 @@ export function PatientGrowthTab({ patientId, isActive }: PatientGrowthTabProps)
   const sex = normalizePatientSex(data?.patient.gender);
   const summary = data?.summary;
   const patientAgeMonths = data?.patient.current_age_months ?? summary?.latest_age_months ?? 0;
-  const showWhoReference = patientAgeMonths <= 24;
   const hasMeasurements = (summary?.total_measurements ?? 0) > 0;
+  /** Show WHO 0–24m reference curves whenever we have vitals (like web). */
+  const showWhoReference = hasMeasurements;
+  const showWhoAgeNote = patientAgeMonths > 24;
 
   const latestHeight = toGrowthNumber(summary?.latest_height_cm);
   const latestWeight = toGrowthNumber(summary?.latest_weight_kg);
@@ -96,6 +96,10 @@ export function PatientGrowthTab({ patientId, isActive }: PatientGrowthTabProps)
   const weightPercentile =
     showWhoReference && latestWeight != null
       ? getNearestPercentile(latestWeight, defaultWhoReference[sex].weight, latestAgeMonths)
+      : null;
+  const bmiPercentile =
+    showWhoReference && latestBmi != null
+      ? getNearestPercentile(latestBmi, defaultWhoReference[sex].bmi, latestAgeMonths)
       : null;
 
   const historyPoints = useMemo(
@@ -173,6 +177,7 @@ export function PatientGrowthTab({ patientId, isActive }: PatientGrowthTabProps)
           <SummaryCard
             label="Latest BMI"
             value={latestBmi != null ? latestBmi.toFixed(2) : '—'}
+            subtitle={bmiPercentile ? `~${bmiPercentile} percentile` : undefined}
             accent="#8b5cf6"
           />
         </SummaryCardWrap>
@@ -199,19 +204,16 @@ export function PatientGrowthTab({ patientId, isActive }: PatientGrowthTabProps)
         </View>
       ) : (
         <>
-          {!showWhoReference ? (
+          {showWhoAgeNote ? (
             <View style={[styles.warning, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}>
               <ThemedText type="small" style={styles.warningText}>
-                WHO reference curves apply to ages 0–24 months. Charts show measurement trends only.
+                WHO reference curves are shown for ages 0–24 months. Patient measurements beyond 24
+                months still appear on the chart.
               </ThemedText>
             </View>
           ) : null}
 
-          <GrowthChartsRow
-            data={data}
-            sex={sex}
-            showWhoReference={showWhoReference}
-          />
+          <GrowthChartsRow data={data} sex={sex} showWhoReference={showWhoReference} />
 
           <MeasurementHistory points={historyPoints} isMobile={isMobile} />
         </>
@@ -342,9 +344,6 @@ function SummaryCard({
   );
 }
 
-const CHART_ROW_GAP = Spacing.two;
-const CHART_COUNT = 3;
-
 function GrowthChartsRow({
   data,
   sex,
@@ -354,53 +353,30 @@ function GrowthChartsRow({
   sex: ReturnType<typeof normalizePatientSex>;
   showWhoReference: boolean;
 }) {
-  const [rowWidth, setRowWidth] = useState(0);
+  const charts: { kind: 'height' | 'weight' | 'bmi' }[] = [
+    { kind: 'height' },
+    { kind: 'weight' },
+    { kind: 'bmi' },
+  ];
 
-  const onRowLayout = (event: LayoutChangeEvent) => {
-    setRowWidth(event.nativeEvent.layout.width);
+  const seriesByKind = {
+    height: apiSeriesToChartPoints(data.series.height_for_age),
+    weight: apiSeriesToChartPoints(data.series.weight_for_age),
+    bmi: apiSeriesToChartPoints(data.series.bmi_for_age),
   };
 
-  const chartWidth =
-    rowWidth > 0
-      ? Math.floor((rowWidth - CHART_ROW_GAP * (CHART_COUNT - 1)) / CHART_COUNT)
-      : undefined;
-  const compact = chartWidth != null && chartWidth < 260;
-
   return (
-    <View style={styles.chartsSection} onLayout={onRowLayout}>
-      <ChartCard>
-        <GrowthLineChart
-          kind="height"
-          patientPoints={apiSeriesToChartPoints(data.series.height_for_age)}
-          sex={sex}
-          showWhoReference={showWhoReference}
-          width={chartWidth}
-          height={compact ? 200 : 220}
-          compact={compact}
-        />
-      </ChartCard>
-      <ChartCard>
-        <GrowthLineChart
-          kind="weight"
-          patientPoints={apiSeriesToChartPoints(data.series.weight_for_age)}
-          sex={sex}
-          showWhoReference={showWhoReference}
-          width={chartWidth}
-          height={compact ? 200 : 220}
-          compact={compact}
-        />
-      </ChartCard>
-      <ChartCard>
-        <GrowthLineChart
-          kind="bmi"
-          patientPoints={apiSeriesToChartPoints(data.series.bmi_for_age)}
-          sex={sex}
-          showWhoReference={false}
-          width={chartWidth}
-          height={compact ? 200 : 220}
-          compact={compact}
-        />
-      </ChartCard>
+    <View style={styles.chartsStack}>
+      {charts.map(({ kind }) => (
+        <ChartCard key={kind}>
+          <GrowthLineChart
+            kind={kind}
+            patientPoints={seriesByKind[kind]}
+            sex={sex}
+            showWhoReference={showWhoReference}
+          />
+        </ChartCard>
+      ))}
     </View>
   );
 }
@@ -746,17 +722,15 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontSize: 13,
   },
-  chartsSection: {
-    flexDirection: 'row',
-    gap: CHART_ROW_GAP,
-    alignItems: 'stretch',
+  chartsStack: {
+    gap: Spacing.four,
+    width: '100%',
   },
   chartCard: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: PatientUI.radius.md,
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: Spacing.two,
+    padding: Spacing.three,
+    width: '100%',
   },
   historySection: {
     gap: Spacing.two,
