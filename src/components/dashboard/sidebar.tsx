@@ -1,18 +1,31 @@
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { usePathname, useRouter } from 'expo-router';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ThemedText } from '@/components/themed-text';
 
 const KLINIKA_LOGO = require('@/assets/images/klinika-logo.png');
 import { NAV_SECTIONS, type NavItem } from '@/constants/navigation';
 import { Brand, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
+import { fetchCurrentEstablishment } from '@/services/establishment-api';
 
 const EXPANDED_WIDTH = 260;
 const COLLAPSED_WIDTH = 80;
+const COLLAPSE_DURATION = 280;
+const COLLAPSE_EASING = Easing.bezier(0.4, 0, 0.2, 1);
 
 type SidebarProps = {
   collapsed: boolean;
@@ -25,8 +38,126 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const theme = useTheme();
   const colorScheme = useColorScheme();
+  const { token } = useAuth();
+  const [establishmentName, setEstablishmentName] = useState('');
   const isDark = colorScheme === 'dark';
-  const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
+  const progress = useSharedValue(collapsed ? 1 : 0);
+
+  useEffect(() => {
+    if (!token) {
+      setEstablishmentName('');
+      return;
+    }
+
+    let mounted = true;
+
+    fetchCurrentEstablishment(token)
+      .then(establishment => {
+        if (mounted) {
+          setEstablishmentName(establishment.name);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setEstablishmentName('');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    progress.value = withTiming(collapsed ? 1 : 0, {
+      duration: COLLAPSE_DURATION,
+      easing: COLLAPSE_EASING,
+    });
+  }, [collapsed, progress]);
+
+  const sidebarStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [EXPANDED_WIDTH, COLLAPSED_WIDTH]),
+  }));
+
+  const headerStyle = useAnimatedStyle(() => ({
+    paddingHorizontal: interpolate(progress.value, [0, 1], [Spacing.three, Spacing.two]),
+  }));
+
+  const logoStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [44, 48]),
+    height: interpolate(progress.value, [0, 1], [44, 48]),
+    borderRadius: interpolate(progress.value, [0, 1], [12, 14]),
+    overflow: 'hidden' as const,
+  }));
+
+  const labelFadeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.45], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateX: interpolate(progress.value, [0, 0.45], [0, -8], Extrapolation.CLAMP),
+      },
+    ],
+  }));
+
+  const brandCopyStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.45], [1, 0], Extrapolation.CLAMP),
+    maxWidth: interpolate(progress.value, [0, 0.5], [180, 0], Extrapolation.CLAMP),
+    flexGrow: interpolate(progress.value, [0, 0.5], [1, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateX: interpolate(progress.value, [0, 0.45], [0, -8], Extrapolation.CLAMP),
+      },
+    ],
+  }));
+
+  const sectionLabelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.45], [1, 0], Extrapolation.CLAMP),
+    maxHeight: interpolate(progress.value, [0, 0.45], [22, 0], Extrapolation.CLAMP),
+    marginBottom: interpolate(progress.value, [0, 0.45], [Spacing.half, 0], Extrapolation.CLAMP),
+    overflow: 'hidden' as const,
+  }));
+
+  const navStyle = useAnimatedStyle(() => ({
+    paddingHorizontal: interpolate(progress.value, [0, 1], [Spacing.two, Spacing.one]),
+  }));
+
+  const navItemStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [EXPANDED_WIDTH - Spacing.two * 2, 48]),
+    height: interpolate(progress.value, [0, 1], [44, 48]),
+    paddingHorizontal: interpolate(progress.value, [0, 1], [Spacing.two, 0]),
+    paddingVertical: interpolate(progress.value, [0, 1], [10, 0]),
+    gap: interpolate(progress.value, [0, 1], [Spacing.two, 0]),
+  }));
+
+  const activeBarStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.35], [1, 0], Extrapolation.CLAMP),
+  }));
+
+  const collapseButtonStyle = useAnimatedStyle(() => ({
+    width: interpolate(progress.value, [0, 1], [EXPANDED_WIDTH - Spacing.two * 2, 48]),
+    height: interpolate(progress.value, [0, 1], [40, 48]),
+    paddingHorizontal: interpolate(progress.value, [0, 1], [Spacing.three, 0]),
+    gap: interpolate(progress.value, [0, 0.5], [Spacing.two, 0], Extrapolation.CLAMP),
+  }));
+
+  const collapseLabelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.4], [1, 0], Extrapolation.CLAMP),
+    maxWidth: interpolate(progress.value, [0, 0.45], [96, 0], Extrapolation.CLAMP),
+    transform: [
+      {
+        translateX: interpolate(progress.value, [0, 0.4], [0, -6], Extrapolation.CLAMP),
+      },
+    ],
+    overflow: 'hidden' as const,
+  }));
+
+  const collapseIconStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg` }],
+  }));
+
+  const footerStyle = useAnimatedStyle(() => ({
+    paddingHorizontal: interpolate(progress.value, [0, 1], [Spacing.two, Spacing.one]),
+  }));
 
   const palette = {
     activeBg: isDark ? 'rgba(32, 138, 239, 0.16)' : Brand.primaryMuted,
@@ -49,109 +180,128 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
   };
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.sidebar,
+        sidebarStyle,
         {
-          width,
           backgroundColor: theme.background,
           borderRightColor: theme.backgroundSelected,
         },
       ]}>
-      <View style={[styles.header, collapsed && styles.headerCollapsed]}>
-        <Image
-          source={KLINIKA_LOGO}
-          style={[styles.logo, collapsed && styles.logoCollapsed]}
-          contentFit="cover"
-          accessibilityLabel="Klinika AI logo"
-        />
-        {!collapsed ? (
-          <View style={styles.brandCopy}>
-            <ThemedText type="smallBold" style={styles.brandTitle}>
-              KlinikaAI
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.brandTagline}>
-              Workspace
-            </ThemedText>
-          </View>
-        ) : null}
-      </View>
+      <Animated.View style={[styles.header, headerStyle]}>
+        <Animated.View style={logoStyle}>
+          <Image
+            source={KLINIKA_LOGO}
+            style={styles.logoImage}
+            contentFit="cover"
+            accessibilityLabel="Klinika AI logo"
+          />
+        </Animated.View>
+        <Animated.View style={[styles.brandCopy, brandCopyStyle]} pointerEvents={collapsed ? 'none' : 'auto'}>
+          <ThemedText type="smallBold" style={styles.brandTitle} numberOfLines={1}>
+            KlinikaAI
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.brandTagline} numberOfLines={1}>
+            {establishmentName}
+          </ThemedText>
+        </Animated.View>
+      </Animated.View>
 
-      <ScrollView
-        contentContainerStyle={[styles.nav, collapsed && styles.navCollapsed]}
-        showsVerticalScrollIndicator={false}>
-        {NAV_SECTIONS.map((section, sectionIndex) => (
-          <View
-            key={section.title}
-            style={[styles.section, sectionIndex > 0 && styles.sectionSpaced]}>
-            {!collapsed ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
-                {section.title.toUpperCase()}
-              </ThemedText>
-            ) : null}
-            {section.items.map(item => {
-              const active = isActive(item.href);
-              return (
-                <Pressable
-                  key={item.href}
-                  onPress={() => navigate(item.href)}
-                  style={({ pressed }) => [
-                    styles.navItem,
-                    collapsed && styles.navItemCollapsed,
-                    active && { backgroundColor: palette.activeBg },
-                    pressed && styles.pressed,
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}>
-                  {active && !collapsed ? (
-                    <View style={[styles.activeBar, { backgroundColor: palette.activeBorder }]} />
-                  ) : null}
-                  <View style={[styles.iconWrap, collapsed && styles.iconWrapCollapsed]}>
-                    <Ionicons
-                      name={item.icon}
-                      size={20}
-                      color={active ? Brand.primary : palette.iconMuted}
-                    />
-                  </View>
-                  {!collapsed ? (
-                    <ThemedText
-                      type="small"
-                      themeColor={active ? undefined : 'textSecondary'}
-                      style={[styles.navLabel, active && styles.navLabelActive]}
-                      numberOfLines={1}>
-                      {item.label}
-                    </ThemedText>
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Animated.View style={[styles.nav, navStyle]}>
+          {NAV_SECTIONS.map((section, sectionIndex) => (
+            <View
+              key={section.title}
+              style={[styles.section, sectionIndex > 0 && styles.sectionSpaced]}>
+              <Animated.View style={sectionLabelStyle} pointerEvents={collapsed ? 'none' : 'auto'}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.sectionLabel}>
+                  {section.title.toUpperCase()}
+                </ThemedText>
+              </Animated.View>
+              {section.items.map(item => {
+                const active = isActive(item.href);
+                return (
+                  <Pressable
+                    key={item.href}
+                    onPress={() => navigate(item.href)}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.label}
+                    accessibilityState={{ selected: active }}>
+                    {({ pressed }) => (
+                      <Animated.View
+                        style={[
+                          styles.navItem,
+                          navItemStyle,
+                          active && { backgroundColor: palette.activeBg },
+                          pressed && styles.pressed,
+                        ]}>
+                        {active ? (
+                          <Animated.View
+                            style={[
+                              styles.activeBar,
+                              activeBarStyle,
+                              { backgroundColor: palette.activeBorder },
+                            ]}
+                          />
+                        ) : null}
+                        <View style={styles.iconWrap}>
+                          <Ionicons
+                            name={item.icon}
+                            size={20}
+                            color={active ? Brand.primary : palette.iconMuted}
+                          />
+                        </View>
+                        <Animated.View
+                          style={[styles.navLabelWrap, labelFadeStyle]}
+                          pointerEvents={collapsed ? 'none' : 'auto'}>
+                          <ThemedText
+                            type="small"
+                            themeColor={active ? undefined : 'textSecondary'}
+                            style={[styles.navLabel, active && styles.navLabelActive]}
+                            numberOfLines={1}>
+                            {item.label}
+                          </ThemedText>
+                        </Animated.View>
+                      </Animated.View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </Animated.View>
       </ScrollView>
 
-      <View style={[styles.footer, { borderTopColor: theme.backgroundSelected }]}>
+      <Animated.View style={[styles.footer, footerStyle, { borderTopColor: theme.backgroundSelected }]}>
         <Pressable
           onPress={onToggle}
-          style={({ pressed }) => [
-            styles.collapseButton,
-            { backgroundColor: palette.footerBg, borderColor: palette.toggleBorder },
-            collapsed && styles.collapseButtonCollapsed,
-            pressed && styles.pressed,
-          ]}
-          accessibilityLabel={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
-          <Ionicons
-            name={collapsed ? 'chevron-forward' : 'chevron-back'}
-            size={16}
-            color={theme.textSecondary}
-          />
-          {!collapsed ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.collapseLabel}>
-              Collapse
-            </ThemedText>
-          ) : null}
+          style={styles.collapsePressable}
+          accessibilityLabel={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          accessibilityRole="button">
+          {({ pressed }) => (
+            <Animated.View
+              style={[
+                styles.collapseButton,
+                collapseButtonStyle,
+                { backgroundColor: palette.footerBg, borderColor: palette.toggleBorder },
+                pressed && styles.collapseButtonPressed,
+              ]}>
+              <Animated.View style={[styles.collapseIcon, collapseIconStyle]}>
+                <Ionicons name="chevron-back" size={18} color={theme.textSecondary} />
+              </Animated.View>
+              <Animated.View
+                style={[styles.collapseLabelWrap, collapseLabelStyle]}
+                pointerEvents={collapsed ? 'none' : 'auto'}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.collapseLabel}>
+                  Collapse
+                </ThemedText>
+              </Animated.View>
+            </Animated.View>
+          )}
         </Pressable>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -162,23 +312,18 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     paddingTop: Spacing.three,
     paddingBottom: Spacing.two,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
     marginBottom: Spacing.one,
   },
-  headerCollapsed: {
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.two,
-  },
-  logo: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  logoImage: {
+    width: '100%',
+    height: '100%',
     flexShrink: 0,
     ...Platform.select({
       ios: {
@@ -193,15 +338,10 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  logoCollapsed: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-  },
   brandCopy: {
-    flex: 1,
     minWidth: 0,
     gap: 2,
+    overflow: 'hidden',
   },
   brandTitle: {
     letterSpacing: -0.2,
@@ -211,12 +351,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   nav: {
-    paddingHorizontal: Spacing.two,
     paddingBottom: Spacing.three,
-  },
-  navCollapsed: {
-    paddingHorizontal: Spacing.one,
-    alignItems: 'center',
   },
   section: {
     gap: Spacing.half,
@@ -235,20 +370,10 @@ const styles = StyleSheet.create({
   navItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: 10,
-    paddingHorizontal: Spacing.two,
+    alignSelf: 'center',
     borderRadius: 12,
     position: 'relative',
     overflow: 'hidden',
-  },
-  navItemCollapsed: {
-    width: 48,
-    height: 48,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   activeBar: {
     position: 'absolute',
@@ -263,13 +388,14 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
-  iconWrapCollapsed: {
-    width: '100%',
-    height: '100%',
+  navLabelWrap: {
+    flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
   },
   navLabel: {
-    flex: 1,
     fontWeight: 500,
   },
   navLabelActive: {
@@ -278,27 +404,35 @@ const styles = StyleSheet.create({
   },
   footer: {
     borderTopWidth: 1,
-    paddingHorizontal: Spacing.two,
     paddingTop: Spacing.two,
+  },
+  collapsePressable: {
+    alignItems: 'center',
   },
   collapseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
     borderRadius: 12,
     borderWidth: 1,
-  },
-  collapseButtonCollapsed: {
-    width: 48,
-    height: 44,
     alignSelf: 'center',
-    paddingHorizontal: 0,
+    overflow: 'hidden',
+  },
+  collapseIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  collapseLabelWrap: {
+    overflow: 'hidden',
   },
   collapseLabel: {
     fontWeight: 500,
+  },
+  collapseButtonPressed: {
+    opacity: 0.78,
   },
   pressed: {
     opacity: 0.82,
