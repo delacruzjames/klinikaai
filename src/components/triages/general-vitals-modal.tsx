@@ -19,7 +19,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PatientUI } from '@/components/patients/patient-ui';
 import { ThemedText } from '@/components/themed-text';
 import {
+  GENERAL_VITAL_FIELD_BY_KEY,
   GENERAL_VITALS_FIELDS,
+  GENERAL_VITALS_ROWS,
   emptyGeneralVitalsForm,
   type GeneralVitalsFieldKey,
   type GeneralVitalsFormValues,
@@ -329,43 +331,59 @@ export function GeneralVitalsModal({
                     Vital signs
                   </ThemedText>
                 </View>
-                <View style={[styles.fieldGrid, isTablet && styles.fieldGridTablet]}>
-                  {GENERAL_VITALS_FIELDS.map((field, index) => {
-                    const isLastVital = index === GENERAL_VITALS_FIELDS.length - 1;
-                    return (
-                      <View
-                        key={field.key}
-                        ref={registerFieldAnchor(field.key)}
-                        collapsable={false}
-                        style={[styles.fieldWrap, isTablet && styles.fieldWrapTablet]}>
-                        <ThemedText style={[styles.fieldLabel, { color: theme.textSecondary }]}>
-                          {field.label}
-                        </ThemedText>
-                        <TextInput
-                          ref={node => {
-                            inputRefs.current[field.key] = node;
-                          }}
-                          value={form[field.key]}
-                          onChangeText={value => updateField(field.key, value)}
-                          onFocus={() => scrollToField(field.key)}
-                          onSubmitEditing={() => focusNextField(field.key)}
-                          placeholder={field.placeholder ?? '—'}
-                          placeholderTextColor={theme.textSecondary}
-                          keyboardType={field.keyboardType}
-                          returnKeyType={isLastVital ? 'next' : 'next'}
-                          blurOnSubmit={false}
-                          editable={!saving}
-                          style={[
-                            ...inputStyle,
-                            {
-                              backgroundColor: theme.background,
-                              borderColor: theme.backgroundSelected,
-                            },
-                          ]}
-                        />
-                      </View>
-                    );
-                  })}
+                <View style={styles.fieldGrid}>
+                  {GENERAL_VITALS_ROWS.map((rowKeys, rowIndex) => (
+                    <View
+                      key={rowKeys.join('-')}
+                      style={[
+                        styles.fieldGridRow,
+                        isTablet && styles.fieldGridRowTablet,
+                      ]}>
+                      {rowKeys.map(key => {
+                        const field = GENERAL_VITAL_FIELD_BY_KEY[key];
+                        const isLastVital =
+                          rowIndex === GENERAL_VITALS_ROWS.length - 1 &&
+                          key === rowKeys[rowKeys.length - 1];
+                        return (
+                          <View
+                            key={field.key}
+                            ref={registerFieldAnchor(field.key)}
+                            collapsable={false}
+                            style={[
+                              styles.fieldWrap,
+                              isTablet && styles.fieldWrapTablet,
+                            ]}>
+                            <ThemedText
+                              style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                              {field.label}
+                            </ThemedText>
+                            <TextInput
+                              ref={node => {
+                                inputRefs.current[field.key] = node;
+                              }}
+                              value={form[field.key]}
+                              onChangeText={value => updateField(field.key, value)}
+                              onFocus={() => scrollToField(field.key)}
+                              onSubmitEditing={() => focusNextField(field.key)}
+                              placeholder={field.placeholder ?? '—'}
+                              placeholderTextColor={theme.textSecondary}
+                              keyboardType={field.keyboardType}
+                              returnKeyType={isLastVital ? 'next' : 'next'}
+                              blurOnSubmit={false}
+                              editable={!saving}
+                              style={[
+                                ...inputStyle,
+                                {
+                                  backgroundColor: theme.background,
+                                  borderColor: theme.backgroundSelected,
+                                },
+                              ]}
+                            />
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
               </View>
 
@@ -629,17 +647,20 @@ const styles = StyleSheet.create({
   fieldGrid: {
     gap: Spacing.three,
   },
-  fieldGridTablet: {
+  fieldGridRow: {
+    gap: Spacing.three,
+  },
+  fieldGridRowTablet: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: '4%',
+    columnGap: '3.5%',
     rowGap: Spacing.three,
   },
   fieldWrap: {
     gap: Spacing.one,
   },
   fieldWrapTablet: {
-    width: '48%',
+    width: '31%',
   },
   fieldLabel: {
     fontSize: 11,
