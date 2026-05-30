@@ -1,8 +1,11 @@
 import { Pressable, ScrollView, StyleSheet, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { usePathname, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
+
+const KLINIKA_LOGO = require('@/assets/images/klinika-logo.png');
 import { NAV_SECTIONS, type NavItem } from '@/constants/navigation';
 import { Brand, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -56,16 +59,19 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: SidebarProps) {
         },
       ]}>
       <View style={[styles.header, collapsed && styles.headerCollapsed]}>
-        <View style={[styles.logoMark, collapsed && styles.logoMarkCollapsed]}>
-          <Ionicons name="pulse" size={collapsed ? 18 : 20} color="#ffffff" />
-        </View>
+        <Image
+          source={KLINIKA_LOGO}
+          style={[styles.logo, collapsed && styles.logoCollapsed]}
+          contentFit="cover"
+          accessibilityLabel="Klinika AI logo"
+        />
         {!collapsed ? (
           <View style={styles.brandCopy}>
             <ThemedText type="smallBold" style={styles.brandTitle}>
               KlinikaAI
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.brandTagline}>
-              Clinic workspace
+              Workspace
             </ThemedText>
           </View>
         ) : null}
@@ -169,29 +175,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: Spacing.two,
   },
-  logoMark: {
-    width: 40,
-    height: 40,
+  logo: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    backgroundColor: Brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexShrink: 0,
     ...Platform.select({
       ios: {
         shadowColor: Brand.primary,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.28,
+        shadowOpacity: 0.22,
         shadowRadius: 8,
       },
-      android: { elevation: 4 },
+      android: { elevation: 3 },
       default: {
-        boxShadow: '0 8px 20px rgba(32, 138, 239, 0.28)',
+        boxShadow: '0 6px 16px rgba(32, 138, 239, 0.22)',
       },
     }),
   },
-  logoMarkCollapsed: {
-    width: 44,
-    height: 44,
+  logoCollapsed: {
+    width: 48,
+    height: 48,
     borderRadius: 14,
   },
   brandCopy: {
