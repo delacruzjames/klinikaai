@@ -2,11 +2,17 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 
 import { loginWithCredentials } from '@/services/auth-api';
 import { clearSession, loadSession, saveSession } from '@/services/auth-storage';
+import { fetchUserProfile } from '@/services/profile-api';
 
 export type AuthUser = {
   email: string;
   establishmentId: string;
   subDomain: string;
+  fullname?: string;
+  role?: string;
+  firstName?: string;
+  lastName?: string;
+  profilePictureUrl?: string | null;
 };
 
 type AuthContextValue = {
@@ -24,6 +30,34 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function baseUserFromSession(session: {
+  email: string;
+  establishmentId: string;
+  subDomain: string;
+}): AuthUser {
+  return {
+    email: session.email,
+    establishmentId: session.establishmentId,
+    subDomain: session.subDomain,
+  };
+}
+
+async function enrichUserWithProfile(user: AuthUser, token: string): Promise<AuthUser> {
+  try {
+    const profile = await fetchUserProfile(token);
+    return {
+      ...user,
+      fullname: profile.fullname,
+      role: profile.type || profile.position,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      profilePictureUrl: profile.profile_picture_url,
+    };
+  } catch {
+    return user;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -35,14 +69,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     loadSession()
-      .then(session => {
+      .then(async session => {
         if (!mounted || !session) return;
+
         setToken(session.token);
-        setUser({
-          email: session.email,
-          establishmentId: session.establishmentId,
-          subDomain: session.subDomain,
-        });
+        const baseUser = baseUserFromSession(session);
+        setUser(baseUser);
+
+        const enriched = await enrichUserWithProfile(baseUser, session.token);
+        if (mounted) setUser(enriched);
       })
       .finally(() => {
         if (mounted) setIsRestoring(false);
@@ -67,11 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       await saveSession(session);
       setToken(session.token);
-      setUser({
-        email: session.email,
-        establishmentId: session.establishmentId,
-        subDomain: session.subDomain,
-      });
+
+      const baseUser = baseUserFromSession(session);
+      setUser(baseUser);
+
+      const enriched = await enrichUserWithProfile(baseUser, session.token);
+      setUser(enriched);
     } finally {
       setIsSigningIn(false);
     }

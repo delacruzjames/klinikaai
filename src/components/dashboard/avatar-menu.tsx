@@ -1,8 +1,9 @@
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { UserAvatar } from '@/components/dashboard/user-avatar';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -20,7 +21,10 @@ type MenuItem = {
 export function AvatarMenu({ visible, onClose }: AvatarMenuProps) {
   const router = useRouter();
   const theme = useTheme();
-  const { signOut, lockScreen } = useAuth();
+  const { user, signOut, lockScreen } = useAuth();
+
+  const displayName = user?.fullname?.trim() || user?.email || 'User';
+  const role = user?.role?.trim();
 
   const run = (action: () => void) => {
     onClose();
@@ -54,14 +58,40 @@ export function AvatarMenu({ visible, onClose }: AvatarMenuProps) {
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View style={[styles.menu, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}>
+          <View style={[styles.profileHeader, { borderBottomColor: theme.backgroundSelected }]}>
+            <UserAvatar
+              fullname={user?.fullname}
+              email={user?.email}
+              firstName={user?.firstName}
+              lastName={user?.lastName}
+              profilePictureUrl={user?.profilePictureUrl}
+              size={44}
+            />
+            <View style={styles.profileText}>
+              <ThemedText type="smallBold" numberOfLines={2}>
+                {displayName}
+              </ThemedText>
+              {role ? (
+                <View style={[styles.roleBadge, { backgroundColor: Brand.primaryMuted }]}>
+                  <ThemedText type="small" style={styles.roleText}>
+                    {role}
+                  </ThemedText>
+                </View>
+              ) : null}
+              {user?.email ? (
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                  {user.email}
+                </ThemedText>
+              ) : null}
+            </View>
+          </View>
+
           {items.map(item => (
             <Pressable
               key={item.label}
               style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
               onPress={() => run(item.onPress)}>
-              <ThemedText
-                type="small"
-                style={item.destructive ? styles.destructive : undefined}>
+              <ThemedText type="small" style={item.destructive ? styles.destructive : undefined}>
                 {item.label}
               </ThemedText>
             </Pressable>
@@ -82,7 +112,7 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.three,
   },
   menu: {
-    minWidth: 200,
+    minWidth: 240,
     borderRadius: Spacing.two,
     borderWidth: 1,
     overflow: 'hidden',
@@ -91,6 +121,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + 2,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderBottomWidth: 1,
+  },
+  profileText: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  roleBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 2,
+  },
+  roleText: {
+    color: Brand.primary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
   },
   menuItem: {
     paddingHorizontal: Spacing.three,

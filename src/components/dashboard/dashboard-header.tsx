@@ -3,9 +3,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AvatarMenu } from '@/components/dashboard/avatar-menu';
+import { UserAvatar } from '@/components/dashboard/user-avatar';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useTheme } from '@/hooks/use-theme';
 
 type DashboardHeaderProps = {
@@ -17,9 +19,12 @@ type DashboardHeaderProps = {
 export function DashboardHeader({ title, onMenuPress, showMenuButton = true }: DashboardHeaderProps) {
   const theme = useTheme();
   const { user } = useAuth();
+  const breakpoint = useBreakpoint();
+  const isMobile = breakpoint === 'mobile';
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? 'KA';
+  const displayName = user?.fullname?.trim() || user?.email || 'User';
+  const role = user?.role?.trim();
 
   return (
     <View style={[styles.header, { borderBottomColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
@@ -45,11 +50,27 @@ export function DashboardHeader({ title, onMenuPress, showMenuButton = true }: D
 
         <Pressable
           onPress={() => setMenuOpen(true)}
-          style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.accountButton, pressed && styles.pressed]}
           accessibilityLabel="Account menu">
-          <ThemedText type="smallBold" style={styles.avatarText}>
-            {initials}
-          </ThemedText>
+          <UserAvatar
+            fullname={user?.fullname}
+            email={user?.email}
+            firstName={user?.firstName}
+            lastName={user?.lastName}
+            profilePictureUrl={user?.profilePictureUrl}
+            size={36}
+          />
+          <View style={[styles.accountText, isMobile && styles.accountTextMobile]}>
+            <ThemedText type="smallBold" numberOfLines={1} style={styles.accountName}>
+              {displayName}
+            </ThemedText>
+            {!isMobile && role ? (
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.accountRole}>
+                {role}
+              </ThemedText>
+            ) : null}
+          </View>
+          <Ionicons name="chevron-down" size={14} color={theme.textSecondary} />
         </Pressable>
       </View>
 
@@ -60,11 +81,12 @@ export function DashboardHeader({ title, onMenuPress, showMenuButton = true }: D
 
 const styles = StyleSheet.create({
   header: {
-    height: 56,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
     borderBottomWidth: 1,
   },
   left: {
@@ -72,11 +94,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     flex: 1,
+    minWidth: 0,
   },
   right: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    flexShrink: 0,
   },
   iconButton: {
     width: 36,
@@ -85,16 +109,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#208AEF',
+  accountButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: Spacing.two,
+    maxWidth: 220,
+    paddingLeft: 2,
+    paddingRight: 4,
+    borderRadius: 999,
   },
-  avatarText: {
-    color: '#ffffff',
+  accountText: {
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: 140,
+  },
+  accountTextMobile: {
+    maxWidth: 96,
+  },
+  accountName: {
+    lineHeight: 16,
+  },
+  accountRole: {
+    marginTop: 1,
+    lineHeight: 14,
+    textTransform: 'capitalize',
   },
   notificationDot: {
     position: 'absolute',
