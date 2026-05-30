@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -15,13 +15,19 @@ import { PatientUI } from '@/components/patients/patient-ui';
 import { ThemedText } from '@/components/themed-text';
 import type { GeneralVitalsFormValues } from '@/constants/general-vitals-fields';
 import { GeneralVitalsModal } from '@/components/triages/general-vitals-modal';
+import {
+  TriageArrivalFooter,
+  TriageArrivalSection,
+} from '@/components/triages/triage-arrival-section';
 import { TriageListView } from '@/components/triages/triage-list-view';
-import { TriagesToolbar } from '@/components/triages/triages-toolbar';
+import { TriageStatCards } from '@/components/triages/triage-stat-cards';
 import { Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
 import { usePatientsPerPage } from '@/hooks/use-breakpoint';
 import { useTheme } from '@/hooks/use-theme';
+import { fetchQueues } from '@/services/queues-api';
 import { fetchTriages, submitVisitVitals, type TriageVisit } from '@/services/triages-api';
+import { computeAverageWaitMinutes, isToday } from '@/utils/format-triage';
 
 export default function TriagesScreen() {
   const router = useRouter();
@@ -35,6 +41,7 @@ export default function TriagesScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [readyCount, setReadyCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +51,16 @@ export default function TriagesScreen() {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const loadReadyCount = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await fetchQueues(token, { page: 1, perPage: 1 });
+      setReadyCount(data.total_records);
+    } catch {
+      setReadyCount(0);
+    }
+  }, [token]);
 
   const loadPage = useCallback(
     async (page: number, searchQuery: string, mode: 'load' | 'refresh' = 'load') => {
@@ -58,7 +75,10 @@ export default function TriagesScreen() {
       setError(null);
 
       try {
-        const data = await fetchTriages(token, { page, perPage, search: searchQuery });
+        const [data] = await Promise.all([
+          fetchTriages(token, { page, perPage, search: searchQuery }),
+          loadReadyCount(),
+        ]);
         setVisits(data.visits);
         setTotalRecords(data.total_records);
         setCurrentPage(data.current_page);
@@ -72,7 +92,7 @@ export default function TriagesScreen() {
         setRefreshing(false);
       }
     },
-    [perPage, token]
+    [loadReadyCount, perPage, token]
   );
 
   const prevSearchRef = useRef(debouncedSearch);
@@ -122,23 +142,49 @@ export default function TriagesScreen() {
 
       setVisits(prev => prev.filter(v => v.id !== vitalsVisit.id));
       setTotalRecords(prev => Math.max(0, prev - 1));
+      setReadyCount(prev => prev + 1);
       setVitalsVisit(null);
     },
     [token, vitalsVisit]
   );
 
+  const averageWaitMinutes = useMemo(() => computeAverageWaitMinutes(visits), [visits]);
+  const patientsToday = useMemo(
+    () => visits.filter(visit => isToday(visit.walked_in_at)).length + readyCount,
+    [readyCount, visits]
+  );
+  const startIndex = (currentPage - 1) * perPage;
+
   const showEmpty = !loading && visits.length === 0 && !error;
   const showList = !loading && visits.length > 0;
 
+  const queueContent = loading && !refreshing ? (
+    <ActivityIndicator style={styles.loader} color={Brand.primary} />
+  ) : showEmpty ? (
+    <View style={styles.empty}>
+      <View style={[styles.emptyIcon, { backgroundColor: '#fff7ed' }]}>
+        <Ionicons name="medkit-outline" size={36} color="#ea580c" />
+      </View>
+      <ThemedText type="smallBold" style={styles.emptyTitle}>
+        {debouncedSearch ? 'No matches' : 'Triage bay is clear'}
+      </ThemedText>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.emptyHint}>
+        {debouncedSearch
+          ? 'Try another patient name.'
+          : 'Walk-ins appear here until vitals are recorded. They then move to the consultation queue.'}
+      </ThemedText>
+    </View>
+  ) : showList ? (
+    <TriageListView
+      visits={visits}
+      startIndex={startIndex}
+      onPatientPress={handlePatientPress}
+      onStartPress={handleStartPress}
+    />
+  ) : null;
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.backgroundElement }]}>
-      <TriagesToolbar
-        search={search}
-        onSearchChange={setSearch}
-        totalRecords={totalRecords}
-        loading={loading && !refreshing}
-      />
-
       {error ? (
         <View
           style={[
@@ -162,49 +208,35 @@ export default function TriagesScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.primary} />}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
-        {loading && !refreshing ? (
-          <ActivityIndicator style={styles.loader} color={Brand.primary} />
-        ) : null}
-
-        {showEmpty ? (
-          <View
-            style={[
-              styles.empty,
-              PatientUI.cardShadow,
-              { backgroundColor: theme.background, borderColor: theme.backgroundSelected },
-            ]}>
-            <View style={[styles.emptyIcon, { backgroundColor: '#fff7ed' }]}>
-              <Ionicons name="medkit-outline" size={36} color="#ea580c" />
-            </View>
-            <ThemedText type="smallBold" style={styles.emptyTitle}>
-              {debouncedSearch ? 'No matches' : 'Triage bay is clear'}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyHint}>
-              {debouncedSearch
-                ? 'Try another patient name.'
-                : 'Walk-ins appear here until vitals are recorded. They then move to the consultation queue.'}
-            </ThemedText>
-          </View>
-        ) : null}
-
-        {showList ? (
-          <TriageListView
-            visits={visits}
-            onPatientPress={handlePatientPress}
-            onStartPress={handleStartPress}
-          />
-        ) : null}
-      </ScrollView>
-
-      {showList && totalRecords > perPage ? (
-        <PaginationControls
-          totalRecords={totalRecords}
-          currentPage={currentPage}
-          perPage={perPage}
-          onPageChange={setCurrentPage}
-          disabled={loading || refreshing}
+        <TriageStatCards
+          waitingCount={totalRecords}
+          readyCount={readyCount}
+          averageWaitMinutes={averageWaitMinutes}
+          patientsToday={patientsToday}
+          loading={loading && !refreshing}
         />
-      ) : null}
+
+        <View style={styles.mainColumn}>
+          <TriageArrivalSection
+            search={search}
+            onSearchChange={setSearch}
+            footer={<TriageArrivalFooter />}>
+            {queueContent}
+          </TriageArrivalSection>
+
+          {showList && totalRecords > perPage ? (
+            <View style={styles.paginationWrap}>
+              <PaginationControls
+                totalRecords={totalRecords}
+                currentPage={currentPage}
+                perPage={perPage}
+                onPageChange={setCurrentPage}
+                disabled={loading || refreshing}
+              />
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
 
       <GeneralVitalsModal
         visible={vitalsVisit != null}
@@ -226,25 +258,28 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.four,
+    gap: Spacing.three,
+  },
+  mainColumn: {
+    gap: Spacing.two,
+  },
+  paginationWrap: {
+    marginHorizontal: Spacing.four,
   },
   loader: {
-    marginTop: Spacing.six,
+    marginVertical: Spacing.six,
   },
   errorCard: {
     marginHorizontal: Spacing.three,
-    marginBottom: Spacing.two,
+    marginTop: Spacing.two,
     padding: Spacing.three,
     borderRadius: PatientUI.radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     gap: Spacing.two,
   },
   empty: {
-    marginHorizontal: Spacing.three,
-    marginTop: Spacing.two,
     padding: Spacing.six,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     gap: Spacing.three,
   },

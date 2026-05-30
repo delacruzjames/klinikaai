@@ -37,7 +37,7 @@ export function DashboardHeader({ title, onMenuPress, showMenuButton = true }: D
             <Ionicons name="menu-outline" size={22} color={theme.text} />
           </Pressable>
         ) : null}
-        <ThemedText type="subtitle">{title}</ThemedText>
+        {title ? <ThemedText type="subtitle">{title}</ThemedText> : null}
       </View>
 
       <View style={styles.right}>

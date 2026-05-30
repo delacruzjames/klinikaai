@@ -4,6 +4,8 @@ export type TriagePatient = {
   id: number;
   fullname: string;
   age: string | null;
+  doctor_name?: string | null;
+  date_created?: string | null;
 };
 
 export type TriageVisit = {
@@ -49,6 +51,8 @@ function normalizePatient(raw: unknown): TriagePatient | null {
     id,
     fullname,
     age: p.age != null ? String(p.age) : null,
+    doctor_name: p.doctor_name != null ? String(p.doctor_name) : null,
+    date_created: p.date_created != null ? String(p.date_created) : null,
   };
 }
 
